@@ -22,11 +22,11 @@ const registerUser = asyncHandler( async (req, res) => {
             }
 
         // if not verified yet send otp
-        const token = jwt.sign({id: existedUser.rows[0].id}, process.env.JWT_SECRET_KEY, {expiresIn: '5min'})
+        const token = jwt.sign({id: existedUser.rows[0].user_id}, process.env.JWT_SECRET_KEY, {expiresIn: '5min'})
             
         // update password 
         const hashPassword = await bcrypt.hash(password, 10) 
-        await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashPassword, existedUser.rows[0].id])
+        await pool.query('UPDATE users SET password = $1 WHERE user_id = $2', [hashPassword, existedUser.rows[0].user_id])
 
         const info = await transporter.sendMail({
             from: process.env.EMAIL, // sender address
@@ -37,7 +37,7 @@ const registerUser = asyncHandler( async (req, res) => {
 
         console.log(`send verification code : ${info.messageId}`)
         return res.status(200).json({message: "Verify email is send please check it!"})
-            
+         
         }     
 
 
@@ -47,7 +47,7 @@ const registerUser = asyncHandler( async (req, res) => {
     const newUser = await pool.query("INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING *", [name, email, hashPassword])
     console.log('create a new account')
     // jwt 
-    const token = jwt.sign({id: newUser.rows[0].id}, process.env.JWT_SECRET_KEY, {expiresIn: '5min'})
+    const token = jwt.sign({id: newUser.rows[0].user_id}, process.env.JWT_SECRET_KEY, {expiresIn: '5min'})
     const info = await transporter.sendMail({
         from: process.env.EMAIL, // sender address
         to: email, // list of receivers
@@ -70,12 +70,49 @@ const verifyUser = asyncHandler( async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY)
-    const user = await pool.query('UPDATE users SET isverified = true WHERE id = $1 RETURNING *', [decoded.id])
+    const user = await pool.query('UPDATE users SET isverified = true WHERE user_id = $1 RETURNING *', [decoded.id])
     res.status(200).json(user.rows[0])
 })
 
 const loginUser = asyncHandler( async (req, res) => {
-    return res.status(200).json({message: 'get user'})
+    const {email, password} = req.body
+    if (!email || !password)
+    {
+        return res.status(400).json({message: 'provide all feilds'})
+    }
+
+    // check if email is register
+    const user = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+    if (user.rows.length < 1)
+    {
+        return res.status(400).json({message: 'email is not registered yet'})
+    }
+
+    // check if email is verified
+    if (!user.rows[0].isverified)
+    {
+        return res.status(400).json({message: 'email is not verified yet, please register with the same email to verify'})
+    }
+
+    // check password
+    const isMatch = await bcrypt.compare(password, user.rows[0].password)
+    
+    if (!isMatch)
+    {
+        return res.status(400).json({message: 'password is not correct'})
+    }
+
+    const token = jwt.sign({id: user.rows[0].user_id}, process.env.JWT_SECRET_KEY, {expiresIn: '30d'})
+
+    res.cookie('token', token, {
+        httpOnly: true
+    })
+
+    return res.status(200).json({
+        id: user.rows[0].use_id,
+        email: user.rows[0].email,
+        message: 'Login successful'
+    })
 })
 
 
