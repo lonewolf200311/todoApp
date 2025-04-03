@@ -27,16 +27,24 @@ const registerUser = asyncHandler( async (req, res) => {
         // update password 
         const hashPassword = await bcrypt.hash(password, 10) 
         await pool.query('UPDATE users SET password = $1 WHERE user_id = $2', [hashPassword, existedUser.rows[0].user_id])
+        try {
+            const info = await transporter.sendMail({
+                from: process.env.EMAIL, // sender address
+                to: email, // list of receivers
+                subject: "Verification", // Subject line
+                html: `<a href='http://localhost:3000/api/user/verify/${token}'>Click here </a>`, // html body
+                });
+            console.log(`send verification code : ${info.messageId}`)
+            return res.status(200).json({message: "Verify email is send please check it!"})
+        }
 
-        const info = await transporter.sendMail({
-            from: process.env.EMAIL, // sender address
-            to: email, // list of receivers
-            subject: "Verification", // Subject line
-            html: `<a href='http://localhost:3000/api/user/verify/${token}'>Click here </a>`, // html body
-            });
+        catch (error) {
+            console.log('somethings want wrong with the mail')
+            return res.status(400).json({message: 'Email error'})
+        }
 
-        console.log(`send verification code : ${info.messageId}`)
-        return res.status(200).json({message: "Verify email is send please check it!"})
+
+
          
         }     
 
@@ -48,15 +56,24 @@ const registerUser = asyncHandler( async (req, res) => {
     console.log('create a new account')
     // jwt 
     const token = jwt.sign({id: newUser.rows[0].user_id}, process.env.JWT_SECRET_KEY, {expiresIn: '5min'})
-    const info = await transporter.sendMail({
-        from: process.env.EMAIL, // sender address
-        to: email, // list of receivers
-        subject: "Verification", // Subject line
-        html: `<a href='http://localhost:3000/api/user/verify/${token}'>Click here </a>`, // html body
-        });
 
-    console.log(`send verification code : ${info.messageId}`)
-    return res.status(200).json({message: "Verify email is send please check it!"})   
+    try {
+        const info = await transporter.sendMail({
+            from: process.env.EMAIL, // sender address
+            to: email, // list of receivers
+            subject: "Verification", // Subject line
+            html: `<a href='http://localhost:3000/api/user/verify/${token}'>Click here </a>`, // html body
+            });
+    
+        console.log(`send verification code : ${info.messageId}`)
+        return res.status(200).json({message: "Verify email is send please check it!"}) 
+
+    }
+    catch (error) {
+        console.log('somethings want wrong with the mail')
+        return res.status(400).json({message: 'Email error'})
+    }
+    
 })
 
 // verify 
