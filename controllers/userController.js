@@ -40,7 +40,7 @@ const registerUser = asyncHandler( async (req, res) => {
 
         catch (error) {
             console.log('somethings want wrong with the mail')
-            return res.status(400).json({message: 'Email error'})
+            return res.status(400).json(error)
         }
 
 
@@ -71,7 +71,7 @@ const registerUser = asyncHandler( async (req, res) => {
     }
     catch (error) {
         console.log('somethings want wrong with the mail')
-        return res.status(400).json({message: 'Email error'})
+        return res.status(400).json(error)
     }
     
 })
